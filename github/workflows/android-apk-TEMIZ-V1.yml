@@ -1,0 +1,36 @@
+name: Deniz Gizem Gezi Asistani TEMIZ V1 APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dosyalari al
+        uses: actions/checkout@v4
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle kur
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Projeyi ac
+        run: |
+          rm -rf project
+          mkdir project
+          unzip -q deniz_gizem_gezi_asistani_TEMIZ_V1.zip -d project
+
+      - name: Kotlin ayarlarini duzelt
+        run: |
+          cat > project/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android
