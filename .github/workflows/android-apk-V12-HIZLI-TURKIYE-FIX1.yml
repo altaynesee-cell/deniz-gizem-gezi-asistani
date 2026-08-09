@@ -1,0 +1,66 @@
+name: Deniz Gizem Gezi Asistani V12 HIZLI TURKIYE FIX1 APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo dosyalarini al
+        uses: actions/checkout@v4
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK kur
+        uses: android-actions/setup-android@v3
+
+      - name: Android 36 platformunu kur
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Gradle 8.13 kur
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: V12 projeyi ac
+        run: |
+          rm -rf project
+          mkdir project
+
+          ZIP_FILE="$(find . -maxdepth 1 -type f \( -iname 'deniz_gizem_gezi_asistani_V12*.zip' -o -iname '*V12*HIZLI*TURKIYE*.zip' \) | sort | tail -n 1)"
+
+          echo "Bulunan ZIP: $ZIP_FILE"
+          if [ -z "$ZIP_FILE" ]; then
+            echo "HATA: Repo ana dizininde V12 ZIP bulunamadi."
+            echo "Mevcut ZIP dosyalari:"
+            find . -maxdepth 1 -type f -iname '*.zip' -print
+            exit 1
+          fi
+
+          unzip -q "$ZIP_FILE" -d project
+
+          test -f project/gradle.properties
+          grep -q "android.useAndroidX=true" project/gradle.properties
+          test -f project/app/src/main/java/com/altay/denizgizem/MainActivity.kt
+
+      - name: Kritik testleri calistir
+        working-directory: project
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: APK derle
+        working-directory: project
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: APK yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: DenizGizem-V12-HIZLI-TURKIYE-APK
+          path: project/app/build/outputs/apk/debug/app-debug.apk
