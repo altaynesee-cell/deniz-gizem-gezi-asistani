@@ -34,7 +34,7 @@ jobs:
         run: |
           rm -rf project
           mkdir project
-          unzip unzip -q deniz_gizem_gezi_asistani_V10_STABIL_FIX1.zip -d project
+           unzip -q deniz_gizem_gezi_asistani_V10_STABIL_FIX1.zip -d project
           test -f project/settings.gradle.kts
           test -f project/app/build.gradle.kts
           test -f project/app/src/main/java/com/altay/denizgizem/MainActivity.kt
