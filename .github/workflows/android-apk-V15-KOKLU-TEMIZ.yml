@@ -1,0 +1,110 @@
+name: Deniz Gizem V15 KOKLU TEMIZ APK
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Android platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: V15 ZIP'i bul ve ac
+        run: |
+          rm -rf project && mkdir project
+          ZIP_FILE="$(find . -maxdepth 1 -type f -iname 'deniz_gizem_gezi_asistani_V15_KOKLU_TEMIZ*.zip' | sort | tail -n 1)"
+          echo "Bulunan: $ZIP_FILE"
+          test -n "$ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d project
+          test -f project/data/v15_refine_db.py
+          test -f project/data/v15_verify_db.py
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: V15 temiz veri cache
+        id: v15cache
+        uses: actions/cache/restore@v4
+        with:
+          path: project/app/src/main/assets/turkey_v14.sqlite
+          key: v15-koklu-temiz-data-r1
+
+      - name: V14 basarili tam veri cache geri yukle
+        if: steps.v15cache.outputs.cache-hit != 'true'
+        id: v14cache
+        uses: actions/cache/restore@v4
+        with:
+          path: project/app/src/main/assets/turkey_v14.sqlite
+          key: v14-turkiye-data-2026-08-12-r7-fix5
+
+      - name: Veri araclari
+        if: steps.v15cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool
+          python -m pip install --upgrade pip
+          pip install -r project/data/requirements.txt
+
+      - name: OpenStreetMap Turkiye
+        if: steps.v15cache.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --retry 5 --retry-delay 4 -o /tmp/turkey.osm.pbf https://download.geofabrik.de/europe/turkey-latest.osm.pbf
+          test "$(stat -c%s /tmp/turkey.osm.pbf)" -gt 300000000
+
+      - name: Tam veriyi sifirdan olustur gerekirse
+        if: steps.v15cache.outputs.cache-hit != 'true' && steps.v14cache.outputs.cache-hit != 'true'
+        run: |
+          rm -f project/app/src/main/assets/turkey_v14.sqlite
+          python project/data/build_full_db.py --osm-pbf /tmp/turkey.osm.pbf --output project/app/src/main/assets/turkey_v14.sqlite
+
+      - name: V15 yanlis kategori + tekrar + koklu siralama duzeltmesi
+        if: steps.v15cache.outputs.cache-hit != 'true'
+        run: |
+          python project/data/v15_refine_db.py --self-test --db project/app/src/main/assets/turkey_v14.sqlite
+          python project/data/v15_refine_db.py --db project/app/src/main/assets/turkey_v14.sqlite --osm-pbf /tmp/turkey.osm.pbf
+
+      - name: V15 ZORUNLU kalite testleri
+        run: |
+          python project/data/v15_verify_db.py project/app/src/main/assets/turkey_v14.sqlite --strict
+          ls -lh project/app/src/main/assets/turkey_v14.sqlite
+
+      - name: V15 temiz veriyi cache kaydet
+        if: steps.v15cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: project/app/src/main/assets/turkey_v14.sqlite
+          key: v15-koklu-temiz-data-r1
+
+      - name: Android test
+        working-directory: project
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: APK
+        working-directory: project
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DenizGizem-V15-KOKLU-TEMIZ-APK
+          path: project/app/build/outputs/apk/debug/app-debug.apk
